@@ -1,6 +1,6 @@
 import numpy as np
 
-available_weights = ['ffhq', 'car', 'cat', 'church', 'horse']
+available_weights = ['custom'] 
 weights_stylegan2_dir = 'weights/'
 
 mapping_weights = [ 'Dense0/weight', 'Dense0/bias',
@@ -12,20 +12,21 @@ mapping_weights = [ 'Dense0/weight', 'Dense0/bias',
                     'Dense6/weight', 'Dense6/bias',
                     'Dense7/weight', 'Dense7/bias']
 
-def get_synthesis_name_weights(resolution):
-    synthesis_weights = ['4x4/Const/const',
-                         '4x4/Conv/noise_strength',
-                         '4x4/Conv/bias',
-                         '4x4/Conv/mod_bias',
-                         '4x4/Conv/mod_weight',
-                         '4x4/Conv/weight',
-                         '4x4/ToRGB/bias',
-                         '4x4/ToRGB/mod_bias',
-                         '4x4/ToRGB/mod_weight',
-                         '4x4/ToRGB/weight']
+def get_synthesis_name_weights(min_h, min_w, resolution):
+    synthesis_weights = ['{}x{}/Const/const',
+                         '{}x{}/Conv/noise_strength',
+                         '{}x{}/Conv/bias',
+                         '{}x{}/Conv/mod_bias',
+                         '{}x{}/Conv/mod_weight',
+                         '{}x{}/Conv/weight',
+                         '{}x{}/ToRGB/bias',
+                         '{}x{}/ToRGB/mod_bias',
+                         '{}x{}/ToRGB/mod_weight',
+                         '{}x{}/ToRGB/weight']
+    synthesis_weights = [s.format(min_h, min_w) for s in synthesis_weights]
 
-    for res in range(3,int(np.log2(resolution)) + 1):
-        name = '{}x{}/'.format(2**res, 2**res)
+    for res in range(1,int(np.log2(resolution)) + 1):
+        name = '{}x{}/'.format(min_h * 2**res, min_w * 2**res)
         for up in ['Conv0_up/', 'Conv1/', 'ToRGB/']:
             for var in ['noise_strength', 'bias', 'mod_bias', 'mod_weight', 'weight']:
                 if up == 'ToRGB/' and var == 'noise_strength':
@@ -34,9 +35,10 @@ def get_synthesis_name_weights(resolution):
                 
     return synthesis_weights
 
-synthesis_weights_1024 = get_synthesis_name_weights(1024)
-synthesis_weights_512 = get_synthesis_name_weights(512)
-synthesis_weights_256 = get_synthesis_name_weights(256)
+#synthesis_weights_1024 = get_synthesis_name_weights(1024)
+#synthesis_weights_512 = get_synthesis_name_weights(512)
+#synthesis_weights_256 = get_synthesis_name_weights(256)
+synthesis_weights_custom = get_synthesis_name_weights(5,3, 256)
 
 
 discriminator_weights_1024 = ['disc_4x4/Conv/bias',
@@ -172,12 +174,8 @@ discriminator_weights_256 =  ['disc_4x4/Conv/bias',
                             'disc_Output/bias']
 
 synthesis_weights = {
-    'ffhq' : synthesis_weights_1024,
-    'car' : synthesis_weights_512,
-    'cat' : synthesis_weights_256,
-    'horse' : synthesis_weights_256,
-    'church' : synthesis_weights_256
-    }
+    'custom': synthesis_weights_custom
+}
 
 discriminator_weights = {
     'ffhq' : discriminator_weights_1024,

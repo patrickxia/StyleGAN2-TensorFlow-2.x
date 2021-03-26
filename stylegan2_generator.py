@@ -17,7 +17,7 @@ class MappingNetwork(tf.keras.layers.Layer):
         super(MappingNetwork, self).__init__(**kwargs)
         
         self.dlatent_size = 512
-        self.dlatent_vector = (int(np.log2(resolution))-1)*2
+        self.dlatent_vector = 18
         self.mapping_layers = 8
         self.lrmul = 0.01
         
@@ -74,26 +74,35 @@ class SynthesisNetwork(tf.keras.layers.Layer):
         
         self.resolution_log2 = int(np.log2(self.resolution))
         self.resample_kernel = [1, 3, 3, 1]
+
+        # hackity hack hack
+        self.min_h = 5
+        self.min_w = 3
         
     def build(self, input_shape):
+        min_h = self.min_h
+        min_w = self.min_w
         
         #constant layer
-        self.const_4_4 = self.add_weight(name='4x4/Const/const', shape=(1, 512, 4, 4), 
+        self.const_4_4 = self.add_weight(name='5x3/Const/const', shape=(1, 512, min_h, min_w), 
                                         initializer=tf.random_normal_initializer(0, 1), trainable=True)
         #early layer 4x4
-        self.layer_4_4 = SynthesisMainLayer(fmaps=nf(1), impl=self.impl, gpu=self.gpu, name='4x4')
-        self.torgb_4_4 = ToRgbLayer(impl=self.impl, gpu=self.gpu, name='4x4')
+        self.layer_4_4 = SynthesisMainLayer(fmaps=nf(1), impl=self.impl, gpu=self.gpu, name=f'{min_h}x{min_w}')
+        self.torgb_4_4 = ToRgbLayer(impl=self.impl, gpu=self.gpu, name=f'{min_h}x{min_w}')
         #main layers
-        for res in range(3, self.resolution_log2 + 1):
-            res_str = str(2**res)
-            setattr(self, 'layer_{}_{}_up'.format(res_str, res_str), 
-                    SynthesisMainLayer(fmaps=nf(res-1), impl=self.impl, gpu=self.gpu, up=True, name='{}x{}'.format(res_str, res_str)))
-            setattr(self, 'layer_{}_{}'.format(res_str, res_str), 
-                    SynthesisMainLayer(fmaps=nf(res-1), impl=self.impl, gpu=self.gpu, name='{}x{}'.format(res_str, res_str)))
-            setattr(self, 'torgb_{}_{}'.format(res_str, res_str), 
-                    ToRgbLayer(impl=self.impl, gpu=self.gpu, name='{}x{}'.format(res_str, res_str)))
+        for res in range(1, self.resolution_log2 + 1):
+            res_h = min_h * 2**res
+            res_w = min_w * 2**res
+            setattr(self, 'layer_{}_{}_up'.format(res_h, res_w), 
+                    SynthesisMainLayer(fmaps=nf(res+1), impl=self.impl, gpu=self.gpu, up=True, name='{}x{}'.format(res_h, res_w)))
+            setattr(self, 'layer_{}_{}'.format(res_h, res_w), 
+                    SynthesisMainLayer(fmaps=nf(res+1), impl=self.impl, gpu=self.gpu, name='{}x{}'.format(res_h, res_w)))
+            setattr(self, 'torgb_{}_{}'.format(res_h, res_w), 
+                    ToRgbLayer(impl=self.impl, gpu=self.gpu, name='{}x{}'.format(res_h, res_w)))
         
     def call(self, dlatents_in):
+        min_h = self.min_h
+        min_w = self.min_w
         
         dlatents_in = tf.cast(dlatents_in, 'float32')
         y = None
@@ -104,11 +113,11 @@ class SynthesisNetwork(tf.keras.layers.Layer):
         y = self.torgb_4_4(x, dlatents_in[:, 1], y)
                 
         # Main layers
-        for res in range(3, self.resolution_log2 + 1):
-            x = getattr(self, 'layer_{}_{}_up'.format(2**res, 2**res))(x, dlatents_in[:, res*2-5])
-            x = getattr(self, 'layer_{}_{}'.format(2**res, 2**res))(x, dlatents_in[:, res*2-4])
+        for res in range(1, self.resolution_log2 + 1):
+            x = getattr(self, 'layer_{}_{}_up'.format(min_h * 2**res, min_w * 2**res))(x, dlatents_in[:, res*2-5])
+            x = getattr(self, 'layer_{}_{}'.format(min_h * 2**res, min_w * 2**res))(x, dlatents_in[:, res*2-4])
             y = upsample_2d(y, k=self.resample_kernel, impl=self.impl, gpu=self.gpu)
-            y = getattr(self, 'torgb_{}_{}'.format(2**res, 2**res))(x, dlatents_in[:, res*2-3], y)
+            y = getattr(self, 'torgb_{}_{}'.format(min_h * 2**res, min_w * 2**res))(x, dlatents_in[:, res*2-3], y)
                     
         images_out = y
         return tf.identity(images_out, name='images_out')
@@ -180,6 +189,8 @@ class StyleGan2Generator(tf.keras.layers.Layer):
         None.
 
         """
+        self.resolution=256
+        return
         if  weights_name == 'ffhq': 
             self.resolution = 1024
         elif weights_name == 'car': 
